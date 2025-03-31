@@ -165,6 +165,11 @@ local function createItemButton(object)
     ItemFrame.AutoButtonColor = false
     ItemFrame.Parent = scrollingFrame
 
+    local itemRef = Instance.new("ObjectValue")
+    itemRef.Name = "ItemRef"
+    itemRef.Value = object
+    itemRef.Parent = ItemFrame
+
     local View = Instance.new("ViewportFrame")
     View.Name = "View"
     View.Size = UDim2.new(1, 0, 1, 0)
@@ -225,25 +230,22 @@ local function updateGui()
     
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if child:IsA("TextButton") then
-            local exists = false
-            for _, item in pairs(currentItems) do
-                if child.View:FindFirstChild(item.Name) then
-                    exists = true
-                    break
-                end
-            end
-            if not exists then
+            local itemRef = child:FindFirstChild("ItemRef")
+            if itemRef and not table.find(currentItems, itemRef.Value) then
                 child:Destroy()
             end
         end
     end
 
-    for _, item in pairs(currentItems) do
+    for _, item in ipairs(currentItems) do
         local exists = false
         for _, child in ipairs(scrollingFrame:GetChildren()) do
-            if child:IsA("TextButton") and child.View:FindFirstChild(item.Name) then
-                exists = true
-                break
+            if child:IsA("TextButton") then
+                local itemRef = child:FindFirstChild("ItemRef")
+                if itemRef and itemRef.Value == item then
+                    exists = true
+                    break
+                end
             end
         end
         if not exists then
