@@ -1,8 +1,15 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local MAX_ITEMS = 20
 
 local function createGui(parent)
+    if parent:FindFirstChild("PiggyGui") then
+        return parent.PiggyGui.ScrollingFrame
+    end
+
     local PiggyGui = Instance.new("ScreenGui")
     PiggyGui.Name = "PiggyGui"
     PiggyGui.ResetOnSpawn = false
@@ -82,30 +89,6 @@ local function createGui(parent)
         SliderThumb.Position = UDim2.new(0, 0, 0, math.clamp(ratio * availableSpace, 0, availableSpace))
     end
 
-    local isDragging = false
-    SliderThumb.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isDragging = true
-            local startPos = input.Position.Y
-            local thumbStartPos = SliderThumb.Position.Y.Offset
-
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    isDragging = false
-                    connection:Disconnect()
-                else
-                    local delta = input.Position.Y - startPos
-                    local newY = math.clamp(thumbStartPos + delta, 0, SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
-                    SliderThumb.Position = UDim2.new(0, 0, 0, newY)
-
-                    local ratio = newY / (SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
-                    ScrollingFrame.CanvasPosition = Vector2.new(0, ratio * maxScroll)
-                end
-            end)
-        end
-    end)
-
     ScrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(updateSlider)
     ScrollingFrame:GetPropertyChangedSignal("CanvasSize"):Connect(updateSlider)
 
@@ -131,26 +114,14 @@ end
 
 local scrollingFrame = createGui(game.CoreGui)
 
-local function isItem(obj)
-    if obj:FindFirstChild("ClickDetector") then
-        local isDoor = obj.Name:lower():find("door") 
-            or obj.Parent.Name:lower():find("door")
-            or obj:FindFirstChild("DoorScript")
-
-        local isPart = obj:IsA("BasePart") and obj.Transparency < 0.5
-        local isModel = obj:IsA("Model") and obj.PrimaryPart ~= nil
-        
-        return not isDoor and (isPart or isModel)
-    end
-    return false
-end
-
 local function getItems()
     local items = {}
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if isItem(obj) and not table.find(items, obj) then
-            table.insert(items, obj)
-        end
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return items end
+
+    for _, obj in ipairs(itemsFolder:GetChildren()) do
+        table.insert(items, obj)
+        if #items >= MAX_ITEMS then break end
     end
     return items
 end
@@ -212,10 +183,8 @@ local function createItemButton(object)
         humanoid.PlatformStand = true
 
         character:PivotTo(object:GetPivot() * CFrame.new(0, 0, -2))
-        
         wait(0.1)
         fireclickdetector(clickDetector)
-        
         task.delay(0.2, function()
             if character and hrp then
                 character:PivotTo(originalCFrame)
@@ -225,9 +194,21 @@ local function createItemButton(object)
     end)
 end
 
+local lastItems = {}
+
+local function itemsEqual(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do
+        if a[i] ~= b[i] then return false end
+    end
+    return true
+end
+
 local function updateGui()
     local currentItems = getItems()
-    
+    if itemsEqual(currentItems, lastItems) then return end
+    lastItems = table.clone(currentItems)
+
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if child:IsA("TextButton") then
             local itemRef = child:FindFirstChild("ItemRef")
@@ -254,6 +235,19 @@ local function updateGui()
     end
 end
 
-RunService.Heartbeat:Connect(function()
-    pcall(updateGui)
+local itemsFolder = Workspace:FindFirstChild("Items")
+if itemsFolder then
+    itemsFolder.ChildAdded:Connect(function(obj)
+        updateGui()
+    end)
+    itemsFolder.ChildRemoved:Connect(function(obj)
+        updateGui()
+    end)
+end
+
+task.spawn(function()
+    while true do
+        pcall(updateGui)
+        task.wait(0.5)
+    end
 end)
