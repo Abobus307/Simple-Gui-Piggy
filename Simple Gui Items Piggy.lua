@@ -3,12 +3,11 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local function createGui(parent)
-    local PiggyGui = Instance.new("ScreenGui")
+    local PiggyGui = Instance.new("ScreenGui", parent)
     PiggyGui.Name = "PiggyGui"
     PiggyGui.ResetOnSpawn = false
-    PiggyGui.Parent = parent
 
-    local MainFrame = Instance.new("Frame")
+    local MainFrame = Instance.new("Frame", PiggyGui)
     MainFrame.Name = "MainFrame"
     MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MainFrame.Position = UDim2.new(0.08, 0, 0.42, 0)
@@ -17,9 +16,8 @@ local function createGui(parent)
     MainFrame.Active = true
     MainFrame.Draggable = true
     MainFrame.ClipsDescendants = true
-    MainFrame.Parent = PiggyGui
 
-    local ToggleButton = Instance.new("TextButton")
+    local ToggleButton = Instance.new("TextButton", MainFrame)
     ToggleButton.Name = "ToggleButton"
     ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     ToggleButton.Size = UDim2.new(1, 0, 0, 40)
@@ -29,45 +27,39 @@ local function createGui(parent)
     ToggleButton.TextSize = 30
     ToggleButton.BorderSizePixel = 0
     ToggleButton.ZIndex = 2
-    ToggleButton.Parent = MainFrame
 
-    local ContentFrame = Instance.new("Frame")
+    local ContentFrame = Instance.new("Frame", MainFrame)
     ContentFrame.Name = "ContentFrame"
     ContentFrame.BackgroundTransparency = 1
     ContentFrame.Position = UDim2.new(0, 0, 0, 40)
     ContentFrame.Size = UDim2.new(1, 0, 1, -40)
-    ContentFrame.Parent = MainFrame
 
-    local ScrollingFrame = Instance.new("ScrollingFrame")
+    local ScrollingFrame = Instance.new("ScrollingFrame", ContentFrame)
     ScrollingFrame.Name = "ScrollingFrame"
     ScrollingFrame.BackgroundTransparency = 1
     ScrollingFrame.Position = UDim2.new(0, 10, 0, 0)
     ScrollingFrame.Size = UDim2.new(1, -25, 1, 0)
     ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     ScrollingFrame.ScrollBarThickness = 0
-    ScrollingFrame.Parent = ContentFrame
 
-    local UIGridLayout = Instance.new("UIGridLayout")
+    local UIGridLayout = Instance.new("UIGridLayout", ScrollingFrame)
     UIGridLayout.CellSize = UDim2.new(0, 90, 0, 90)
     UIGridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
     UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    UIGridLayout.Parent = ScrollingFrame
 
-    local SliderTrack = Instance.new("Frame")
+    local SliderTrack = Instance.new("Frame", ContentFrame)
     SliderTrack.Name = "SliderTrack"
     SliderTrack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     SliderTrack.Position = UDim2.new(1, -8, 0, 5)
     SliderTrack.Size = UDim2.new(0, 4, 1, -10)
     SliderTrack.BorderSizePixel = 0
     SliderTrack.AnchorPoint = Vector2.new(0.5, 0)
-    SliderTrack.Parent = ContentFrame
 
-    local SliderThumb = Instance.new("Frame")
+    local SliderThumb = Instance.new("Frame", SliderTrack)
     SliderThumb.Name = "SliderThumb"
     SliderThumb.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     SliderThumb.Size = UDim2.new(1, 0, 0, 40)
     SliderThumb.BorderSizePixel = 0
-    SliderThumb.Parent = SliderTrack
 
     local function updateSlider()
         local maxScroll = ScrollingFrame.CanvasSize.Y.Offset - ScrollingFrame.AbsoluteWindowSize.Y
@@ -78,30 +70,28 @@ local function createGui(parent)
 
         SliderTrack.Visible = true
         local ratio = ScrollingFrame.CanvasPosition.Y / maxScroll
-        local availableSpace = SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y
-        SliderThumb.Position = UDim2.new(0, 0, 0, math.clamp(ratio * availableSpace, 0, availableSpace))
+        local available = SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y
+        SliderThumb.Position = UDim2.new(0, 0, 0, math.clamp(ratio * available, 0, available))
     end
 
     local isDragging = false
     SliderThumb.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isDragging = true
-            local startPos = input.Position.Y
-            local thumbStartPos = SliderThumb.Position.Y.Offset
+            local startY = input.Position.Y
+            local startThumb = SliderThumb.Position.Y.Offset
 
-            local connection
-            connection = input.Changed:Connect(function()
+            local conn
+            conn = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     isDragging = false
-                    connection:Disconnect()
+                    conn:Disconnect()
                 else
-                    local delta = input.Position.Y - startPos
-                    local newY = math.clamp(thumbStartPos + delta, 0, SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
+                    local delta = input.Position.Y - startY
+                    local newY = math.clamp(startThumb + delta, 0, SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
                     SliderThumb.Position = UDim2.new(0, 0, 0, newY)
-
                     local ratio = newY / (SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
-                    local maxScroll = ScrollingFrame.CanvasSize.Y.Offset - ScrollingFrame.AbsoluteWindowSize.Y
-                    ScrollingFrame.CanvasPosition = Vector2.new(0, ratio * maxScroll)
+                    ScrollingFrame.CanvasPosition = Vector2.new(0, ratio * ScrollingFrame.CanvasSize.Y.Offset)
                 end
             end)
         end
@@ -120,8 +110,9 @@ local function createGui(parent)
 
     ToggleButton.MouseButton1Click:Connect(function()
         isExpanded = not isExpanded
-        local targetSize = isExpanded and UDim2.new(0, 320, 0, 460) or UDim2.new(0, 320, 0, 40)
-        TweenService:Create(MainFrame, tweenInfo, {Size = targetSize}):Play()
+        TweenService:Create(MainFrame, tweenInfo, {
+            Size = isExpanded and UDim2.new(0, 320, 0, 460) or UDim2.new(0, 320, 0, 40)
+        }):Play()
         ToggleButton.Text = isExpanded and "Свернуть" or "Развернуть"
         ContentFrame.Visible = isExpanded
         SliderTrack.Visible = isExpanded
@@ -134,89 +125,76 @@ local scrollingFrame = createGui(game.CoreGui)
 
 local function isItem(obj)
     if obj:FindFirstChild("ClickDetector") then
-        local isDoor = obj.Name:lower():find("door") 
-            or obj.Parent.Name:lower():find("door")
-            or obj:FindFirstChild("DoorScript")
-
-        local isPart = obj:IsA("BasePart") and obj.Transparency < 0.5
-        local isModel = obj:IsA("Model") and obj.PrimaryPart ~= nil
-        
-        return not isDoor and (isPart or isModel)
+        local name = obj.Name:lower()
+        return not (name:find("door") or obj.Parent.Name:lower():find("door") or obj:FindFirstChild("DoorScript"))
+            and ((obj:IsA("BasePart") and obj.Transparency < 0.5) or (obj:IsA("Model") and obj.PrimaryPart))
     end
     return false
 end
 
 local function getItems()
-    local items = {}
+    local list = {}
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if isItem(obj) and not table.find(items, obj) then
-            table.insert(items, obj)
+        if isItem(obj) then
+            table.insert(list, obj)
         end
     end
-    return items
+    return list
 end
 
 local function createItemButton(object)
-    local ItemFrame = Instance.new("TextButton")
-    ItemFrame.Name = "ItemFrame"
-    ItemFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-    ItemFrame.BackgroundTransparency = 0.95
-    ItemFrame.Size = UDim2.new(0, 90, 0, 90)
-    ItemFrame.Text = ""
-    ItemFrame.AutoButtonColor = false
-    ItemFrame.Parent = scrollingFrame
+    local btn = Instance.new("TextButton", scrollingFrame)
+    btn.Name = "ItemFrame"
+    btn.BackgroundColor3 = Color3.new(1, 1, 1)
+    btn.BackgroundTransparency = 0.95
+    btn.Size = UDim2.new(0, 90, 0, 90)
+    btn.Text = ""
+    btn.AutoButtonColor = false
 
-    local itemRef = Instance.new("ObjectValue")
-    itemRef.Name = "ItemRef"
-    itemRef.Value = object
-    itemRef.Parent = ItemFrame
+    local ref = Instance.new("ObjectValue", btn)
+    ref.Name = "ItemRef"
+    ref.Value = object
 
-    local View = Instance.new("ViewportFrame")
-    View.Name = "View"
-    View.Size = UDim2.new(1, 0, 1, 0)
-    View.BackgroundTransparency = 1
-    View.BorderSizePixel = 0
-    View.Parent = ItemFrame
+    local view = Instance.new("ViewportFrame", btn)
+    view.Name = "View"
+    view.Size = UDim2.new(1, 0, 1, 0)
+    view.BackgroundTransparency = 1
+    view.BorderSizePixel = 0
 
-    local success, result = pcall(function()
-        local viewportClone = object:Clone()
-        viewportClone.Parent = View
+    local success = pcall(function()
+        local clone = object:Clone()
+        clone.Parent = view
 
-        local cam = Instance.new("Camera")
+        local cam = Instance.new("Camera", clone)
         cam.CameraType = Enum.CameraType.Fixed
-        cam.Parent = viewportClone
 
-        local objectPosition = object:GetPivot().Position
-        local cameraPosition = objectPosition + Vector3.new(0, 3, 0)
-        cam.CFrame = CFrame.new(cameraPosition, objectPosition)
-        View.CurrentCamera = cam
+        local pos = object:GetPivot().Position
+        cam.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0), pos)
+        view.CurrentCamera = cam
     end)
 
     if not success then
-        ItemFrame:Destroy()
+        btn:Destroy()
         return
     end
 
-    ItemFrame.MouseButton1Down:Connect(function()
+    btn.MouseButton1Down:Connect(function()
         local player = Players.LocalPlayer
         local character = player.Character or player.CharacterAdded:Wait()
-        if not character then return end
-
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         if not hrp or not humanoid then return end
 
-        local clickDetector = object:FindFirstChild("ClickDetector")
-        if not clickDetector then return end
+        local detector = object:FindFirstChild("ClickDetector")
+        if not detector then return end
 
         local originalCFrame = hrp.CFrame
         humanoid.PlatformStand = true
-
         character:PivotTo(object:GetPivot() * CFrame.new(0, 0, -2))
-        
-        wait(0.1)
-        fireclickdetector(clickDetector)
-        
+
+        task.wait(0.1)
+        fireclickdetector(detector)
+
         task.delay(0.2, function()
             if character and hrp then
                 character:PivotTo(originalCFrame)
@@ -226,47 +204,38 @@ local function createItemButton(object)
     end)
 end
 
--- ОПТИМИЗИРОВАННАЯ updateGui
 local function updateGui()
-    local currentItems = getItems()
-    local itemSet = {}
-    for _, item in ipairs(currentItems) do
-        itemSet[item] = true
-    end
+    local items = getItems()
+    local children = scrollingFrame:GetChildren()
 
-    -- Удаляем устаревшие кнопки
-    for _, child in ipairs(scrollingFrame:GetChildren()) do
+    for _, child in ipairs(children) do
         if child:IsA("TextButton") then
-            local itemRef = child:FindFirstChild("ItemRef")
-            if itemRef and not itemSet[itemRef.Value] then
+            local ref = child:FindFirstChild("ItemRef")
+            if ref and not table.find(items, ref.Value) then
                 child:Destroy()
             end
         end
     end
 
-    -- Добавляем новые кнопки
-    local existing = {}
-    for _, child in ipairs(scrollingFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            local itemRef = child:FindFirstChild("ItemRef")
-            if itemRef then
-                existing[itemRef.Value] = true
+    for _, item in ipairs(items) do
+        local found = false
+        for _, child in ipairs(children) do
+            if child:IsA("TextButton") then
+                local ref = child:FindFirstChild("ItemRef")
+                if ref and ref.Value == item then
+                    found = true
+                    break
+                end
             end
         end
-    end
-    for _, item in ipairs(currentItems) do
-        if not existing[item] then
+        if not found then
             createItemButton(item)
         end
     end
 end
 
--- Вместо Heartbeat используем периодический цикл
-local UPDATE_INTERVAL = 1 -- обновлять раз в 1 секунду
-
 task.spawn(function()
-    while true do
+    while task.wait(1) do
         pcall(updateGui)
-        task.wait(UPDATE_INTERVAL)
     end
 end)
