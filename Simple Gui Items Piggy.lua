@@ -1,15 +1,8 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-
-local MAX_ITEMS = 20
 
 local function createGui(parent)
-    if parent:FindFirstChild("PiggyGui") then
-        return parent.PiggyGui.ScrollingFrame
-    end
-
     local PiggyGui = Instance.new("ScreenGui")
     PiggyGui.Name = "PiggyGui"
     PiggyGui.ResetOnSpawn = false
@@ -89,6 +82,31 @@ local function createGui(parent)
         SliderThumb.Position = UDim2.new(0, 0, 0, math.clamp(ratio * availableSpace, 0, availableSpace))
     end
 
+    local isDragging = false
+    SliderThumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+            local startPos = input.Position.Y
+            local thumbStartPos = SliderThumb.Position.Y.Offset
+
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    isDragging = false
+                    connection:Disconnect()
+                else
+                    local delta = input.Position.Y - startPos
+                    local newY = math.clamp(thumbStartPos + delta, 0, SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
+                    SliderThumb.Position = UDim2.new(0, 0, 0, newY)
+
+                    local ratio = newY / (SliderTrack.AbsoluteSize.Y - SliderThumb.AbsoluteSize.Y)
+                    local maxScroll = ScrollingFrame.CanvasSize.Y.Offset - ScrollingFrame.AbsoluteWindowSize.Y
+                    ScrollingFrame.CanvasPosition = Vector2.new(0, ratio * maxScroll)
+                end
+            end)
+        end
+    end)
+
     ScrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(updateSlider)
     ScrollingFrame:GetPropertyChangedSignal("CanvasSize"):Connect(updateSlider)
 
@@ -114,14 +132,26 @@ end
 
 local scrollingFrame = createGui(game.CoreGui)
 
+local function isItem(obj)
+    if obj:FindFirstChild("ClickDetector") then
+        local isDoor = obj.Name:lower():find("door") 
+            or obj.Parent.Name:lower():find("door")
+            or obj:FindFirstChild("DoorScript")
+
+        local isPart = obj:IsA("BasePart") and obj.Transparency < 0.5
+        local isModel = obj:IsA("Model") and obj.PrimaryPart ~= nil
+        
+        return not isDoor and (isPart or isModel)
+    end
+    return false
+end
+
 local function getItems()
     local items = {}
-    local itemsFolder = Workspace:FindFirstChild("Items")
-    if not itemsFolder then return items end
-
-    for _, obj in ipairs(itemsFolder:GetChildren()) do
-        table.insert(items, obj)
-        if #items >= MAX_ITEMS then break end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if isItem(obj) and not table.find(items, obj) then
+            table.insert(items, obj)
+        end
     end
     return items
 end
@@ -183,8 +213,10 @@ local function createItemButton(object)
         humanoid.PlatformStand = true
 
         character:PivotTo(object:GetPivot() * CFrame.new(0, 0, -2))
+        
         wait(0.1)
         fireclickdetector(clickDetector)
+        
         task.delay(0.2, function()
             if character and hrp then
                 character:PivotTo(originalCFrame)
@@ -194,60 +226,47 @@ local function createItemButton(object)
     end)
 end
 
-local lastItems = {}
-
-local function itemsEqual(a, b)
-    if #a ~= #b then return false end
-    for i = 1, #a do
-        if a[i] ~= b[i] then return false end
-    end
-    return true
-end
-
+-- ОПТИМИЗИРОВАННАЯ updateGui
 local function updateGui()
     local currentItems = getItems()
-    if itemsEqual(currentItems, lastItems) then return end
-    lastItems = table.clone(currentItems)
+    local itemSet = {}
+    for _, item in ipairs(currentItems) do
+        itemSet[item] = true
+    end
 
+    -- Удаляем устаревшие кнопки
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if child:IsA("TextButton") then
             local itemRef = child:FindFirstChild("ItemRef")
-            if itemRef and not table.find(currentItems, itemRef.Value) then
+            if itemRef and not itemSet[itemRef.Value] then
                 child:Destroy()
             end
         end
     end
 
-    for _, item in ipairs(currentItems) do
-        local exists = false
-        for _, child in ipairs(scrollingFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                local itemRef = child:FindFirstChild("ItemRef")
-                if itemRef and itemRef.Value == item then
-                    exists = true
-                    break
-                end
+    -- Добавляем новые кнопки
+    local existing = {}
+    for _, child in ipairs(scrollingFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            local itemRef = child:FindFirstChild("ItemRef")
+            if itemRef then
+                existing[itemRef.Value] = true
             end
         end
-        if not exists then
+    end
+    for _, item in ipairs(currentItems) do
+        if not existing[item] then
             createItemButton(item)
         end
     end
 end
 
-local itemsFolder = Workspace:FindFirstChild("Items")
-if itemsFolder then
-    itemsFolder.ChildAdded:Connect(function(obj)
-        updateGui()
-    end)
-    itemsFolder.ChildRemoved:Connect(function(obj)
-        updateGui()
-    end)
-end
+-- Вместо Heartbeat используем периодический цикл
+local UPDATE_INTERVAL = 1 -- обновлять раз в 1 секунду
 
 task.spawn(function()
     while true do
         pcall(updateGui)
-        task.wait(0.5)
+        task.wait(UPDATE_INTERVAL)
     end
 end)
